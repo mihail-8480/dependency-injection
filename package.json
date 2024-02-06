@@ -1,0 +1,31 @@
+{
+  "name": "@mojsoski/dependency-injection",
+  "version": "1.0.0",
+  "description": "A dependency injection implementation using typescript decorators and reflect metadata",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "keywords": [
+    "dependencies",
+    "dependency",
+    "injection"
+  ],
+  "author": "Mihail Mojsoski",
+  "license": "MIT",
+  "type": "commonjs",
+  "devDependencies": {
+    "typescript": "^5.2.2"
+  },
+  "scripts": {
+    "watch": "npx tsc --watch",
+    "build": "npx tsc",
+    "prepare": "npm run build",
+    "version": "git add -A lib",
+    "postversion": "git push && git push --tags"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "reflect-metadata": "^0.2.1"
+  }
+}
