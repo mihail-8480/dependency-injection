@@ -1,6 +1,6 @@
 {
   "name": "@mojsoski/dependency-injection",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A dependency injection implementation using typescript decorators and reflect metadata",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

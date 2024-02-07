@@ -1,19 +1,21 @@
 import "reflect-metadata";
 
-type ServiceConstructor = new (...props: any) => any;
-type ServiceConstructorResult<T extends ServiceConstructor> = T extends new (
-  ...props: any
-) => infer TResult
-  ? TResult
-  : never;
+export type Constructor<T> = Function & { prototype: T };
+export type NonAbstractConstructor<T, TProps extends any[]> = new (
+  ...props: TProps
+) => T;
 
-type RegisterDisposableCallback = (t: IDisposable | IAsyncDisposable) => void;
+export type ServiceConstructor = Constructor<any>;
 
-type ServiceConstructorProps<T extends ServiceConstructor> = T extends new (
-  ...props: infer TProps
-) => any
-  ? TProps
-  : never;
+export type ServiceConstructorResult<T extends ServiceConstructor> =
+  T extends Constructor<infer TValue> ? TValue : never;
+
+export type RegisterDisposableCallback = (
+  t: IDisposable | IAsyncDisposable
+) => void;
+
+export type ServiceConstructorProps<T extends ServiceConstructor> =
+  T extends NonAbstractConstructor<any, infer TProps> ? TProps : never;
 
 class DisposableRegistry implements IAsyncDisposable {
   #dispose: (IDisposable | IAsyncDisposable)[] = [];
@@ -38,12 +40,12 @@ class DisposableRegistry implements IAsyncDisposable {
   }
 }
 
-type ServiceFactory<T> = (
+export type ServiceFactory<T> = (
   scope: ServiceCollection,
   registerDisposable: RegisterDisposableCallback
 ) => T;
 
-type TaggedService<T> =
+export type TaggedService<T> =
   | {
       tag: "scoped";
       factory: ServiceFactory<T>;
@@ -58,11 +60,11 @@ type TaggedService<T> =
       store: T | undefined;
     };
 
-interface IAsyncDisposable {
+export interface IAsyncDisposable {
   [Symbol.asyncDispose](): Promise<void>;
 }
 
-interface IDisposable {
+export interface IDisposable {
   [Symbol.dispose](): void;
 }
 
@@ -121,7 +123,7 @@ export abstract class ServiceCollection implements IAsyncDisposable {
     ...props: ServiceConstructorProps<T>
   ): ServiceConstructorResult<T> {
     const injectionMetadata = getInjectionMetadata(service);
-    const value = new service(...(props as any));
+    const value = new (service as any)(...(props as any));
     for (const [key, injectService] of injectionMetadata) {
       value[key] = this.get(injectService);
     }
@@ -150,10 +152,10 @@ export abstract class ServiceCollection implements IAsyncDisposable {
   }
 }
 
-type CompatibleService<T extends ServiceConstructor> =
+export type CompatibleService<T extends ServiceConstructor> =
   | ServiceConstructorResult<T>
   | ((services: ServiceCollection) => ServiceConstructorResult<T>)
-  | (new (services: ServiceCollection) => ServiceConstructorResult<T>)
+  | NonAbstractConstructor<ServiceConstructorResult<T>, [ServiceCollection]>
   | ServiceConstructorProps<T>;
 
 export abstract class ServiceContainer extends ServiceCollection {
@@ -193,9 +195,13 @@ class ServiceScope extends ServiceCollection implements IAsyncDisposable {
   get<T extends ServiceConstructor>(
     serviceConstructor: T
   ): ServiceConstructorResult<T> | undefined {
+    if ((serviceConstructor as Function) === ServiceCollection) {
+      return this as ServiceConstructorResult<T>;
+    }
+
     const tagged = this.getTag(serviceConstructor);
     if (!tagged) {
-      return undefined;
+      return this.#base.get(serviceConstructor);
     }
     if (tagged.tag === "scoped") {
       const value = this.#services.get(tagged);
@@ -286,9 +292,27 @@ export class ServiceHost extends ServiceContainer {
       factory: this.#createServiceFactory(base, service),
     });
   }
+
   getTag<T extends ServiceConstructor>(
     serviceConstructor: T
   ): TaggedService<ServiceConstructorResult<T>> | undefined {
     return this.#services.get(serviceConstructor);
+  }
+  override get<T extends ServiceConstructor>(
+    serviceConstructor: T
+  ): ServiceConstructorResult<T> | undefined {
+    if ((serviceConstructor as Function) === ServiceCollection) {
+      return this as ServiceConstructorResult<T>;
+    }
+
+    if ((serviceConstructor as Function) === ServiceHost) {
+      return this as ServiceConstructorResult<T>;
+    }
+
+    if ((serviceConstructor as Function) === ServiceContainer) {
+      return this as ServiceConstructorResult<T>;
+    }
+
+    return super.get(serviceConstructor);
   }
 }
