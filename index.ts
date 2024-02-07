@@ -68,20 +68,16 @@ interface IDisposable {
 
 export function inject<T extends {}, TKey extends string>(
   target: T,
-  propertyKey: TKey
+  propertyKey: TKey,
+  type?: any
 ): void {
+  const designType =
+    type ?? Reflect.getMetadata("design:type", target, propertyKey);
   if (!Reflect.hasMetadata("inject", target)) {
-    Reflect.defineMetadata(
-      "inject",
-      [[propertyKey, Reflect.getMetadata("design:type", target, propertyKey)]],
-      target
-    );
+    Reflect.defineMetadata("inject", [[propertyKey, designType]], target);
   } else {
     const metadata = Reflect.getMetadata("inject", target);
-    metadata.push([
-      propertyKey,
-      Reflect.getMetadata("design:type", target, propertyKey),
-    ]);
+    metadata.push([propertyKey, designType]);
   }
 }
 
