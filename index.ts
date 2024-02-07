@@ -38,7 +38,10 @@ class DisposableRegistry implements IAsyncDisposable {
   }
 }
 
-type ServiceFactory<T> = (registerDisposable: RegisterDisposableCallback) => T;
+type ServiceFactory<T> = (
+  scope: ServiceCollection,
+  registerDisposable: RegisterDisposableCallback
+) => T;
 
 type TaggedService<T> =
   | {
@@ -90,17 +93,18 @@ function getInjectionMetadata<T extends { prototype: object }>(target: T) {
 }
 
 function getFromTaggedService<T>(
+  services: ServiceCollection,
   tagged: TaggedService<T>,
   registerDisposable: RegisterDisposableCallback
 ): T {
   if (tagged.tag === "transient") {
-    return tagged.factory(registerDisposable);
+    return tagged.factory(services, registerDisposable);
   }
   if (tagged.tag === "singleton") {
     if (tagged.store) {
       return tagged.store;
     }
-    tagged.store = tagged.factory(registerDisposable);
+    tagged.store = tagged.factory(services, registerDisposable);
     return tagged.store;
   }
   if (tagged.tag === "scoped") {
@@ -136,6 +140,7 @@ export abstract class ServiceCollection implements IAsyncDisposable {
       return tag;
     }
     return getFromTaggedService(
+      this,
       tag,
       this.#disposeRegistry.createRegistrationCallback()
     );
@@ -202,12 +207,14 @@ class ServiceScope extends ServiceCollection implements IAsyncDisposable {
         return value;
       }
       const newValue = tagged.factory(
+        this,
         this.disposeRegistry.createRegistrationCallback()
       );
       this.#services.set(tagged, newValue);
       return newValue;
     }
     return getFromTaggedService(
+      this,
       tagged,
       this.disposeRegistry.createRegistrationCallback()
     );
@@ -235,10 +242,13 @@ export class ServiceHost extends ServiceContainer {
     };
 
     if (typeof service === "function") {
-      return (cb) => {
+      return (collection, cb) => {
         const anyService = service as any;
         try {
-          return registerIfDisposable(this.inject(anyService, this) as any, cb);
+          return registerIfDisposable(
+            collection.inject(anyService, this) as any,
+            cb
+          );
         } catch {
           return registerIfDisposable(anyService(this), cb);
         }
@@ -246,10 +256,11 @@ export class ServiceHost extends ServiceContainer {
     }
 
     if (Array.isArray(service)) {
-      return (cb) => registerIfDisposable(this.inject(base, ...service), cb);
+      return (collection, cb) =>
+        registerIfDisposable(collection.inject(base, ...service), cb);
     }
 
-    return (cb) => registerIfDisposable(service as any, cb);
+    return (_, cb) => registerIfDisposable(service as any, cb);
   }
   addSingleton<TService extends ServiceConstructor>(
     base: TService,
