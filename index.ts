@@ -216,9 +216,9 @@ class ServiceScope extends ServiceCollection implements IAsyncDisposable {
       return newValue;
     }
     return getFromTaggedService(
-      this,
+      this.#base,
       tagged,
-      this.disposeRegistry.createRegistrationCallback()
+      this.#base.disposeRegistry.createRegistrationCallback()
     );
   }
   [Symbol.asyncDispose](): Promise<void> {
@@ -229,7 +229,7 @@ class ServiceScope extends ServiceCollection implements IAsyncDisposable {
 export class ServiceHost extends ServiceContainer {
   #services: Map<ServiceConstructor, TaggedService<any>> = new Map();
 
-  #createServiceFactory<TService extends ServiceConstructor>(
+  static #createServiceFactory<TService extends ServiceConstructor>(
     base: TService,
     service: CompatibleService<TService>
   ): ServiceFactory<ServiceConstructorResult<TService>> {
@@ -248,11 +248,11 @@ export class ServiceHost extends ServiceContainer {
         const anyService = service as any;
         try {
           return registerIfDisposable(
-            collection.inject(anyService, this) as any,
+            collection.inject(anyService, collection) as any,
             cb
           );
         } catch {
-          return registerIfDisposable(anyService(this), cb);
+          return registerIfDisposable(anyService(collection), cb);
         }
       };
     }
@@ -270,7 +270,7 @@ export class ServiceHost extends ServiceContainer {
   ): void {
     this.#services.set(base, {
       tag: "singleton",
-      factory: this.#createServiceFactory(base, service),
+      factory: ServiceHost.#createServiceFactory(base, service),
       store: undefined,
     });
   }
@@ -280,7 +280,7 @@ export class ServiceHost extends ServiceContainer {
   ): void {
     this.#services.set(base, {
       tag: "scoped",
-      factory: this.#createServiceFactory(base, service),
+      factory: ServiceHost.#createServiceFactory(base, service),
     });
   }
   addTransient<TService extends ServiceConstructor>(
@@ -289,7 +289,7 @@ export class ServiceHost extends ServiceContainer {
   ): void {
     this.#services.set(base, {
       tag: "transient",
-      factory: this.#createServiceFactory(base, service),
+      factory: ServiceHost.#createServiceFactory(base, service),
     });
   }
 
